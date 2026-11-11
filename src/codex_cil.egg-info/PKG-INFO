@@ -1,0 +1,53 @@
+Metadata-Version: 2.4
+Name: codex-cil
+Version: 0.3.1
+Summary: 贾维斯, a personal Windows desktop butler built on Codex.
+Requires-Python: >=3.11
+Description-Content-Type: text/plain
+Requires-Dist: PySide6<7,>=6.8
+Requires-Dist: tomlkit<1,>=0.13
+Provides-Extra: dev
+Requires-Dist: pyinstaller<7,>=6.12; extra == "dev"
+Requires-Dist: pytest<10,>=8; extra == "dev"
+Requires-Dist: pytest-qt<5,>=4.4; extra == "dev"
+
+贾维斯 / J.A.R.V.I.S.
+======================
+
+贾维斯 is a personal Windows desktop butler built with PySide6 on the
+Codex agent runtime.
+
+Current 0.3.1 milestone:
+- project sessions backed by Codex app-server
+- tool-free pure model chats
+- project folders and project AGENTS.md editing
+- context and token telemetry card
+- file explorer
+- per-server MCP enable/disable controls and discoverable Skill management
+- PowerShell command console
+- embedded browser
+- keyboard command registry
+- nine persistent visual themes: hacker green, Gundam, Iron Man, sci-fi,
+  black empire, Cyberpunk 2077, Pacific Rim, StarCraft, and retro CRT
+
+Run
+---
+
+  .\.venv\Scripts\python.exe -m codex_cil
+
+Build a Windows release:
+
+  .\packaging\build_release.ps1
+
+Optional environment variables:
+
+  CODEX_CIL_DATA_DIR         Override local application data directory
+  CODEX_CIL_CODEX_BIN        Override the Codex executable path
+  CODEX_HOME                 Codex state directory (defaults to ~/.codex)
+
+Model and authentication
+------------------------
+
+Project and tool-free chats both inherit model, provider, base URL, and
+authentication from CODEX_HOME/config.toml. Codex CIL never copies provider
+tokens into its database or project files.

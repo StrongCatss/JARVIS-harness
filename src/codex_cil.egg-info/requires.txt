@@ -1,0 +1,7 @@
+PySide6<7,>=6.8
+tomlkit<1,>=0.13
+
+[dev]
+pyinstaller<7,>=6.12
+pytest<10,>=8
+pytest-qt<5,>=4.4
