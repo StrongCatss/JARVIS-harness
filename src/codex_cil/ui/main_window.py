@@ -96,6 +96,14 @@ def _image_data_url(path: Path) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
+def _approval_policy_for_mode(permission_mode: str) -> str:
+    return (
+        "never"
+        if permission_mode in {"auto", "full_access"}
+        else "on-request"
+    )
+
+
 def _build_pure_chat_payload(
     messages: list[Message],
     context_window: int | None,
@@ -221,15 +229,12 @@ class MainWindow(QMainWindow):
         )
         self.pure_chat.textDelta.connect(self._pure_chat_text_delta)
         self.pure_chat.responseReady.connect(self._pure_chat_response)
+        self.pure_chat.requestCancelled.connect(self._pure_chat_cancelled)
         self.pure_chat.requestFailed.connect(self._pure_chat_error)
 
         self._build_ui()
         self.chat.composer.set_context_mode(
             self.db.get_setting("context_mode", "all") or "all"
-        )
-        self.inspector.set_prices(
-            float(self.db.get_setting("token_input_price", "0") or "0"),
-            float(self.db.get_setting("token_output_price", "0") or "0"),
         )
         self.chat.composer.set_fallback_reasoning_efforts(
             self.codex_config.reasoning_effort
@@ -328,6 +333,7 @@ class MainWindow(QMainWindow):
         self.explorer.addFileToChatRequested.connect(self._add_file_to_chat)
         self.chat.messageSubmitted.connect(self._send_message)
         self.chat.commandRequested.connect(self._run_slash_command)
+        self.chat.stopRequested.connect(self._cancel_current_turn)
         self.chat.detailsRequested.connect(self._show_usage_details)
         self.chat.earlierRequested.connect(self._load_earlier_messages)
         self.chat.composer.contextModeChanged.connect(
@@ -1072,9 +1078,7 @@ class MainWindow(QMainWindow):
                 "writableRoots": [self.current_project.path],
                 "networkAccess": False,
             }
-        approval_policy = (
-            "never" if permission_mode == "full_access" and not self.offline_mode else "on-request"
-        )
+        approval_policy = _approval_policy_for_mode(permission_mode)
         collaboration_mode = None
         if permission_mode == "plan":
             collaboration_mode = {
@@ -1642,7 +1646,7 @@ class MainWindow(QMainWindow):
         if turn_status == "failed":
             self.chat.set_agent_status("error")
         elif turn_status == "interrupted":
-            self.chat.set_agent_status("responding", "已中断")
+            self.chat.set_agent_status("cancelled")
         else:
             self.chat.set_agent_status("done")
 
@@ -1744,21 +1748,56 @@ class MainWindow(QMainWindow):
         self._set_busy(False)
         self.chat.set_agent_status("done")
 
+    def _pure_chat_cancelled(self) -> None:
+        if self.current_session is None:
+            self._set_busy(False)
+            return
+        content = self.chat.finish_assistant_stream().strip()
+        metadata = self.chat.last_assistant_metadata()
+        if content or metadata:
+            self.db.add_message(
+                SessionKind.PURE_CHAT,
+                self.current_session.id,
+                "assistant",
+                content or "（已停止）",
+                metadata,
+            )
+        else:
+            self.chat.discard_empty_assistant()
+        self._clear_stream_draft()
+        self._streaming_text = ""
+        self._streaming_started = False
+        self.inspector.add_activity("纯对话生成已停止")
+        self._set_busy(False)
+        self.chat.set_agent_status("cancelled")
+        self.statusBar().showMessage("已停止生成。", 5000)
+
     def _cancel_current_turn(self) -> None:
+        if not self._busy or self.current_session is None:
+            self.statusBar().showMessage("当前没有正在生成的回答。", 5000)
+            return
+        self.chat.set_agent_status("responding", "正在停止")
+        self.chat.composer.stop_button.setEnabled(False)
+        if self.current_kind == SessionKind.PURE_CHAT:
+            self.inspector.add_activity("正在停止纯对话生成")
+            self.statusBar().showMessage("已请求停止生成。", 5000)
+            self.pure_chat.cancel()
+            return
         if (
-            not self._busy
-            or self.current_session is None
-            or self.current_kind != SessionKind.PROJECT
-            or not self.current_session.backend_id
+            not self.current_session.backend_id
             or not self._current_turn_id
         ):
-            self.statusBar().showMessage("当前没有可停止的项目回合。", 5000)
+            self.chat.composer.stop_button.setEnabled(True)
+            self.chat.set_agent_status("responding")
+            self.statusBar().showMessage(
+                "项目回合仍在初始化，暂时无法停止。",
+                5000,
+            )
             return
         self.gateway.interrupt_turn(
             self.current_session.backend_id,
             self._current_turn_id,
         )
-        self.chat.set_agent_status("responding", "正在停止")
         self.inspector.add_activity("正在停止当前回合")
         self.statusBar().showMessage("已请求停止当前回合。", 5000)
 
@@ -2268,12 +2307,6 @@ class MainWindow(QMainWindow):
             self.codex_config,
             self.gateway.codex_binary(),
             context_window,
-            input_price=float(
-                self.db.get_setting("token_input_price", "0") or "0"
-            ),
-            output_price=float(
-                self.db.get_setting("token_output_price", "0") or "0"
-            ),
             skill_roots=[
                 self.codex_config.codex_home / "skills",
                 self.codex_config.codex_home / "plugins" / "cache",
@@ -2292,18 +2325,6 @@ class MainWindow(QMainWindow):
         self.db.set_setting(
             "pure_chat_context_window",
             dialog.context_window.text().strip() or "0",
-        )
-        self.db.set_setting(
-            "token_input_price",
-            dialog.input_price.text().strip() or "0",
-        )
-        self.db.set_setting(
-            "token_output_price",
-            dialog.output_price.text().strip() or "0",
-        )
-        self.inspector.set_prices(
-            float(dialog.input_price.text().strip() or "0"),
-            float(dialog.output_price.text().strip() or "0"),
         )
         os.environ["CODEX_CIL_CODEX_BIN"] = dialog.codex.text().strip()
         self.codex_config = CodexConfig.load()

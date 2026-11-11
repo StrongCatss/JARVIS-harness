@@ -132,3 +132,14 @@ def test_pure_chat_accepts_structured_image_content() -> None:
     ]
 
     assert _response_input_content(content) == content
+
+
+def test_pure_chat_cancel_emits_cancelled_when_idle(
+    qtbot,  # type: ignore[no-untyped-def]
+) -> None:
+    service = PureChatService()
+    spy = QSignalSpy(service.requestCancelled)
+
+    service.cancel()
+
+    assert spy.count() == 1

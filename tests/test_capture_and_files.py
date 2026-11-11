@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -7,7 +8,10 @@ from PySide6.QtGui import QColor, QPixmap
 
 from codex_cil.ui.composer import ComposerWidget
 from codex_cil.ui.explorer_panel import _copy_path_to_directory
-from codex_cil.ui.screenshot import save_screenshot
+from codex_cil.ui.screenshot import (
+    _capture_windows_virtual_desktop,
+    save_screenshot,
+)
 
 
 def test_explorer_copy_generates_unique_destination(tmp_path: Path) -> None:
@@ -38,6 +42,15 @@ def test_screenshot_is_saved_as_png(
     assert path.suffix == ".png"
     assert QPixmap(str(path)).size().width() == 12
     assert QPixmap(str(path)).size().height() == 8
+
+
+def test_windows_virtual_desktop_handles_64bit_gdi_bitmap(qtbot) -> None:  # type: ignore[no-untyped-def]
+    if os.name != "nt":
+        return
+    image = _capture_windows_virtual_desktop()
+    assert not image.isNull()
+    assert image.width() > 0
+    assert image.height() > 0
 
 
 def test_composer_accepts_images_in_pure_chat_and_rejects_regular_files(

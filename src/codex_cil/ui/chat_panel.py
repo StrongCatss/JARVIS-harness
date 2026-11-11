@@ -128,6 +128,7 @@ class ChatEntry:
 class ChatPanel(QFrame):
     messageSubmitted = Signal(str, list)
     commandRequested = Signal(str)
+    stopRequested = Signal()
     detailsRequested = Signal()
     earlierRequested = Signal()
 
@@ -195,6 +196,7 @@ class ChatPanel(QFrame):
 
         self.composer.messageSubmitted.connect(self.messageSubmitted)
         self.composer.commandRequested.connect(self.commandRequested)
+        self.composer.stopRequested.connect(self.stopRequested)
         self.usage_card.detailsRequested.connect(self.detailsRequested)
         theme_manager.changed.connect(self._theme_changed)
         self.set_agent_status("idle")
@@ -230,6 +232,7 @@ class ChatPanel(QFrame):
             "idle": "待机",
             "responding": "正在输出",
             "done": "回答完毕",
+            "cancelled": "已停止",
             "error": "错误",
         }
         self._agent_state = state
@@ -238,6 +241,7 @@ class ChatPanel(QFrame):
             "idle": current_theme().muted,
             "responding": current_theme().warning,
             "done": current_theme().accent,
+            "cancelled": current_theme().warning,
             "error": current_theme().danger,
         }
         theme = current_theme()

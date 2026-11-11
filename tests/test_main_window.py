@@ -12,7 +12,11 @@ from codex_cil.database import Database
 from codex_cil.models import SessionKind
 from codex_cil.services.codex_gateway import CodexGateway
 from codex_cil.services.theme_store import CustomThemeStore
-from codex_cil.ui.main_window import MainWindow, _build_pure_chat_payload
+from codex_cil.ui.main_window import (
+    MainWindow,
+    _approval_policy_for_mode,
+    _build_pure_chat_payload,
+)
 from codex_cil.ui.theme_system import THEMES
 
 
@@ -214,6 +218,13 @@ def test_pure_chat_payload_uses_recent_context_budget() -> None:
     assert payload
     assert payload[-1]["content"].startswith("message-49-")
     assert len(payload) < len(messages)
+
+
+def test_auto_permission_mode_does_not_prompt_for_each_command() -> None:
+    assert _approval_policy_for_mode("auto") == "never"
+    assert _approval_policy_for_mode("full_access") == "never"
+    assert _approval_policy_for_mode("read_only") == "on-request"
+    assert _approval_policy_for_mode("plan") == "on-request"
 
 
 def test_region_screenshot_shortcut_works_from_composer(

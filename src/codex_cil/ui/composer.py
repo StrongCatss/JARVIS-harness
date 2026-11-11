@@ -75,6 +75,7 @@ class ComposerEditor(QPlainTextEdit):
 class ComposerWidget(QFrame):
     messageSubmitted = Signal(str, list)
     commandRequested = Signal(str)
+    stopRequested = Signal()
     inferenceSettingsChanged = Signal(object, object)
     contextModeChanged = Signal(str)
 
@@ -175,6 +176,11 @@ class ComposerWidget(QFrame):
         self.send_button = QPushButton("发送")
         self.send_button.setObjectName("Primary")
         self.send_button.clicked.connect(self._submit)
+        self.stop_button = QPushButton("停止")
+        self.stop_button.setObjectName("Danger")
+        self.stop_button.setToolTip("停止当前生成，快捷键 Esc")
+        self.stop_button.clicked.connect(self.stopRequested)
+        self.stop_button.setVisible(False)
 
         footer.addWidget(self.attach_button)
         footer.addWidget(self.image_button)
@@ -186,6 +192,7 @@ class ComposerWidget(QFrame):
         footer.addWidget(self.reasoning_combo)
         footer.addWidget(self.speed_combo)
         footer.addWidget(self.send_button)
+        footer.addWidget(self.stop_button)
 
         self.reasoning_combo.currentIndexChanged.connect(self._inference_changed)
         self.speed_combo.currentIndexChanged.connect(self._inference_changed)
@@ -353,8 +360,9 @@ class ComposerWidget(QFrame):
         )
 
     def set_busy(self, busy: bool) -> None:
-        self.send_button.setEnabled(not busy)
-        self.send_button.setText("生成中…" if busy else "发送")
+        self.send_button.setVisible(not busy)
+        self.stop_button.setVisible(busy)
+        self.stop_button.setEnabled(busy)
 
     def eventFilter(self, watched, event) -> bool:  # type: ignore[no-untyped-def]
         if watched is self.editor and event.type() == QEvent.Type.KeyPress:

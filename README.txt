@@ -4,7 +4,7 @@
 贾维斯 is a personal Windows desktop butler built with PySide6 on the
 Codex agent runtime.
 
-Current 0.3.1 milestone:
+Current 0.3.4 milestone:
 - project sessions backed by Codex app-server
 - tool-free pure model chats
 - project folders and project AGENTS.md editing

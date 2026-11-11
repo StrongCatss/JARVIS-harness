@@ -20,6 +20,10 @@ from codex_cil import DISPLAY_NAME
 from codex_cil.models import SessionKind, UsageStats
 from codex_cil.ui.usage_card import compact_number
 
+_DEEPSEEK_V41_FLASH_CACHE_MISS_PRICE = 2.0
+_DEEPSEEK_V41_FLASH_CACHE_HIT_PRICE = 0.04
+_DEEPSEEK_V41_FLASH_OUTPUT_PRICE = 8.0
+
 
 class InspectorPanel(QFrame):
     cancelTurnRequested = Signal()
@@ -35,8 +39,6 @@ class InspectorPanel(QFrame):
         self._plan: list[dict] = []
         self._current_activity = ""
         self._modified_count = 0
-        self._input_price = 0.0
-        self._output_price = 0.0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -118,8 +120,9 @@ class InspectorPanel(QFrame):
             else "—"
         )
         estimated = usage.estimated_cost(
-            self._input_price,
-            self._output_price,
+            _DEEPSEEK_V41_FLASH_CACHE_MISS_PRICE,
+            _DEEPSEEK_V41_FLASH_OUTPUT_PRICE,
+            _DEEPSEEK_V41_FLASH_CACHE_HIT_PRICE,
         )
         self.usage.setPlainText(
             "\n".join(
@@ -137,15 +140,11 @@ class InspectorPanel(QFrame):
                     f"  输出       {compact_number(usage.output_tokens)}",
                     f"  推理输出   {compact_number(usage.reasoning_output_tokens)}",
                     f"  缓存命中   {cache}",
-                    f"  估算费用   ${estimated:.4f}",
+                    "  计费口径   DeepSeek V4.1 Flash 高峰价",
+                    f"  估算费用   ¥{estimated:.4f}",
                 ]
             )
         )
-
-    def set_prices(self, input_price: float, output_price: float) -> None:
-        self._input_price = max(input_price, 0.0)
-        self._output_price = max(output_price, 0.0)
-        self.set_usage(self._usage)
 
     def add_activity(self, message: str) -> None:
         current = self.activity.toPlainText().splitlines()

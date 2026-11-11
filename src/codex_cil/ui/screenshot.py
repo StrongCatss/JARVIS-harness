@@ -272,6 +272,11 @@ def _capture_windows_virtual_desktop() -> QImage:
         ctypes.POINTER(BITMAPINFO),
         ctypes.wintypes.UINT,
     ]
+    gdi32.DeleteObject.argtypes = [ctypes.wintypes.HGDIOBJ]
+    gdi32.DeleteObject.restype = ctypes.wintypes.BOOL
+    gdi32.DeleteDC.argtypes = [ctypes.wintypes.HDC]
+    gdi32.DeleteDC.restype = ctypes.wintypes.BOOL
+    user32.ReleaseDC.restype = ctypes.c_int
 
     left = user32.GetSystemMetrics(76)
     top = user32.GetSystemMetrics(77)
@@ -284,7 +289,14 @@ def _capture_windows_virtual_desktop() -> QImage:
     if not screen_dc:
         return QImage()
     memory_dc = gdi32.CreateCompatibleDC(screen_dc)
+    if not memory_dc:
+        user32.ReleaseDC(None, screen_dc)
+        return QImage()
     bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
+    if not bitmap:
+        gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(None, screen_dc)
+        return QImage()
     old_bitmap = gdi32.SelectObject(memory_dc, bitmap)
     try:
         if not gdi32.BitBlt(
@@ -327,10 +339,10 @@ def _capture_windows_virtual_desktop() -> QImage:
             QImage.Format.Format_RGB32,
         ).copy()
     finally:
-        gdi32.SelectObject(memory_dc, old_bitmap)
-        gdi32.DeleteObject(bitmap)
-        gdi32.DeleteDC(memory_dc)
-        user32.ReleaseDC(None, screen_dc)
+        _safe_gdi_call(gdi32.SelectObject, memory_dc, old_bitmap)
+        _safe_gdi_call(gdi32.DeleteObject, bitmap)
+        _safe_gdi_call(gdi32.DeleteDC, memory_dc)
+        _safe_gdi_call(user32.ReleaseDC, None, screen_dc)
 
 
 def _capture_qt_virtual_desktop() -> QPixmap | None:
@@ -353,3 +365,10 @@ def _capture_qt_virtual_desktop() -> QPixmap | None:
     finally:
         painter.end()
     return None if canvas.isNull() else canvas
+
+
+def _safe_gdi_call(function, *args) -> None:  # type: ignore[no-untyped-def]
+    try:
+        function(*args)
+    except (ctypes.ArgumentError, OSError):
+        pass

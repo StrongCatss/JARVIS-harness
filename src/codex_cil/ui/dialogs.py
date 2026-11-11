@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QDoubleValidator, QIntValidator
+from PySide6.QtGui import QColor, QDesktopServices, QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -250,8 +250,6 @@ class SettingsDialog(QDialog):
         config: CodexConfig,
         codex_binary: str,
         context_window: int,
-        input_price: float = 0.0,
-        output_price: float = 0.0,
         skill_roots: list[str | Path] | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -280,16 +278,6 @@ class SettingsDialog(QDialog):
         self.context_window.setValidator(QIntValidator(0, 100_000_000, self))
         form.addRow("核心可执行文件", self.codex)
         form.addRow("纯对话上下文窗口", self.context_window)
-        self.input_price = QLineEdit(f"{input_price:g}")
-        self.input_price.setValidator(
-            QDoubleValidator(0.0, 1_000_000.0, 6, self)
-        )
-        form.addRow("输入价格 / 1M tokens", self.input_price)
-        self.output_price = QLineEdit(f"{output_price:g}")
-        self.output_price.setValidator(
-            QDoubleValidator(0.0, 1_000_000.0, 6, self)
-        )
-        form.addRow("输出价格 / 1M tokens", self.output_price)
         self.config_path = QLineEdit(str(config.config_path))
         self.config_path.setReadOnly(True)
         form.addRow("核心配置", self.config_path)
@@ -323,6 +311,12 @@ class SettingsDialog(QDialog):
         open_config = QPushButton("打开 config.toml")
         open_config.clicked.connect(self._open_config)
         general_layout.addWidget(open_config)
+        pricing = QLabel(
+            "费用估算：DeepSeek V4.1 Flash 高峰价（输入 ¥2、缓存命中 ¥0.04、输出 ¥8 / 百万 Token）"
+        )
+        pricing.setWordWrap(True)
+        pricing.setObjectName("Muted")
+        general_layout.addWidget(pricing)
         general_layout.addStretch(1)
         self.tabs.addTab(general, "常规")
 

@@ -79,8 +79,10 @@ class UsageStats:
         self,
         input_price_per_million: float,
         output_price_per_million: float,
+        cached_input_price_per_million: float = 0.0,
     ) -> float:
         return (
-            self.input_tokens * input_price_per_million
+            self.uncached_input_tokens * input_price_per_million
+            + self.cached_input_tokens * cached_input_price_per_million
             + self.output_tokens * output_price_per_million
         ) / 1_000_000

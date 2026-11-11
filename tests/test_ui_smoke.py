@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PySide6.QtTest import QSignalSpy
 from PySide6.QtWidgets import QApplication
 
 from codex_cil.models import SessionKind, UsageStats
@@ -25,6 +26,13 @@ def test_chat_panel_modes(qtbot) -> None:  # type: ignore[no-untyped-def]
         panel.composer.permission_combo.findData("plan")
     )
     assert panel.composer.permission_mode == "plan"
+    stop_spy = QSignalSpy(panel.stopRequested)
+    panel.set_busy(True)
+    assert panel.composer.stop_button.isVisible()
+    assert not panel.composer.send_button.isVisible()
+    panel.composer.stop_button.click()
+    assert stop_spy.count() == 1
+    panel.set_busy(False)
     panel.set_usage(UsageStats(context_tokens=50, context_window=100))
     panel.add_message("user", "hello")
     assert "hello" in panel.transcript.toPlainText()

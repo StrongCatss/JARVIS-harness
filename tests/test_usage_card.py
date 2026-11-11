@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QApplication
 
 from codex_cil.models import UsageStats
+from codex_cil.ui.inspector_panel import InspectorPanel
 from codex_cil.ui.usage_card import UsageCard, compact_number
 
 
@@ -32,5 +33,26 @@ def test_usage_card_rendering(qtbot) -> None:  # type: ignore[no-untyped-def]
 
 
 def test_usage_cost_estimate() -> None:
-    usage = UsageStats(input_tokens=1_000_000, output_tokens=500_000)
-    assert usage.estimated_cost(2.0, 4.0) == 4.0
+    usage = UsageStats(
+        input_tokens=1_000_000,
+        cached_input_tokens=200_000,
+        output_tokens=500_000,
+    )
+    assert round(usage.estimated_cost(2.0, 8.0, 0.04), 6) == 5.608
+
+
+def test_inspector_uses_deepseek_v41_flash_pricing(qtbot) -> None:  # type: ignore[no-untyped-def]
+    panel = InspectorPanel()
+    qtbot.addWidget(panel)
+    panel.set_usage(
+        UsageStats(
+            input_tokens=1_000_000,
+            cached_input_tokens=200_000,
+            output_tokens=500_000,
+            total_tokens=1_500_000,
+        )
+    )
+
+    text = panel.usage.toPlainText()
+    assert "DeepSeek V4.1 Flash 高峰价" in text
+    assert "¥5.6080" in text

@@ -19,6 +19,7 @@ class PureChatService(QObject):
     reasoningTextDelta = Signal(str, int, str)
     textDelta = Signal(str)
     responseReady = Signal(str, dict, dict)
+    requestCancelled = Signal()
     requestFailed = Signal(str)
 
     def __init__(
@@ -41,6 +42,7 @@ class PureChatService(QObject):
         self._diagnostic_bytes = bytearray()
         self._response_emitted = False
         self._failure_emitted = False
+        self._cancel_requested = False
         self.config = config or CodexConfig.load()
 
     def send(
@@ -121,8 +123,14 @@ class PureChatService(QObject):
         self._reply.finished.connect(self._handle_finished)
 
     def cancel(self) -> None:
-        if self._reply is not None:
-            self._reply.abort()
+        self._cancel_requested = True
+        self._stream_timer.stop()
+        self._pending_events.clear()
+        if self._reply is None:
+            self._cancel_requested = False
+            self.requestCancelled.emit()
+            return
+        self._reply.abort()
 
     def _reset_stream_state(self) -> None:
         self._stream_timer.stop()
@@ -134,6 +142,7 @@ class PureChatService(QObject):
         self._diagnostic_bytes.clear()
         self._response_emitted = False
         self._failure_emitted = False
+        self._cancel_requested = False
 
     def _read_stream_data(self, reply: QNetworkReply | None = None) -> None:
         reply = reply or self._reply
@@ -154,6 +163,8 @@ class PureChatService(QObject):
             self._handle_sse_event(event_name, data_text)
 
     def _handle_sse_event(self, event_name: str, data_text: str) -> None:
+        if self._cancel_requested:
+            return
         if not data_text or data_text == "[DONE]":
             return
         try:
@@ -255,7 +266,7 @@ class PureChatService(QObject):
                 )
 
     def _emit_final_response(self, response: dict[str, Any]) -> None:
-        if self._failure_emitted:
+        if self._failure_emitted or self._cancel_requested:
             return
         self._flush_stream_events()
         text = _extract_output_text(response)
@@ -269,7 +280,11 @@ class PureChatService(QObject):
         self.responseReady.emit(text, usage, reasoning)
 
     def _emit_failure(self, message: str) -> None:
-        if self._failure_emitted or self._response_emitted:
+        if (
+            self._failure_emitted
+            or self._response_emitted
+            or self._cancel_requested
+        ):
             return
         self._failure_emitted = True
         self._stream_timer.stop()
@@ -279,8 +294,15 @@ class PureChatService(QObject):
         reply = self._reply
         if reply is None:
             return
-        self._read_stream_data(reply)
         self._reply = None
+        if self._cancel_requested:
+            self._cancel_requested = False
+            self._stream_timer.stop()
+            self._pending_events.clear()
+            self.requestCancelled.emit()
+            reply.deleteLater()
+            return
+        self._read_stream_data(reply)
         try:
             text = self._decoder.decode(b"", final=True)
             for event_name, data_text in self._sse.feed(text):
